@@ -21,23 +21,22 @@ const ai = new GoogleGenAI({
   }
 });
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  app.use(express.json({ limit: "15mb" }));
+app.use(express.json({ limit: "15mb" }));
 
-  // Middleware to ensure API key presence
-  app.use("/api/*", (req, res, next) => {
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({
-        error: "Falta la variable de entorno GEMINI_API_KEY. Por favor, confígurala en el panel de Secrets."
-      });
-    }
-    next();
-  });
+// Middleware to ensure API key presence
+app.use("/api/*", (req, res, next) => {
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({
+      error: "Falta la variable de entorno GEMINI_API_KEY. Por favor, confígurala en el panel de Secrets."
+    });
+  }
+  next();
+});
 
-  const systemInstruction = `Rol y Objetivo
+const systemInstruction = `Rol y Objetivo
 Eres Michelle, una asesora de viajes apasionada, experta y altamente adaptable. Tu objetivo es diseñar itinerarios personalizados y colaborar con el usuario para refinar el plan mediante iteraciones y feedback continuo. Transmites una profunda pasión por explorar el mundo.
 
 Modo de Operación
@@ -78,180 +77,138 @@ Noche: [Actividades y opción de cena]
 ## Espacio para Comentarios
 [Cierra tu respuesta siempre con una pregunta amigable invitando al usuario a interactuar contigo. Por ejemplo: "Soy Michelle y estoy aquí para perfeccionar este viaje. ¿Qué te parece esta propuesta? Si deseas cambiar el enfoque de algún día, ajustar el ritmo o buscar algo diferente, dímelo y lo ajustaré con gusto."]`;
 
-  const responseSchema = {
-    type: Type.OBJECT,
-    properties: {
-      markdownItinerary: {
-        type: Type.STRING,
-        description: "El itinerario estructurado completo en formato Markdown siguiendo estrictamente la estructura solicitada."
-      },
-      budgetDistribution: {
-        type: Type.ARRAY,
-        description: "Lista de categorías e importes en porcentaje aproximado para el gráfico de torta o barra en el cliente",
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            category: { type: Type.STRING, description: "Ej: Alojamiento, Transporte, Gastronomía, Actividades, Emergencias" },
-            percentage: { type: Type.INTEGER, description: "Porcentaje del total (0 a 100)" },
-            amountEst: { type: Type.STRING, description: "Gasto monetario estimado orientativo (ej: '$$' o '$150 USD')" },
-            description: { type: Type.STRING, description: "Breve nota sobre qué cubre este presupuesto, adaptado al nivel elegido" }
-          },
-          required: ["category", "percentage", "amountEst", "description"]
-        }
-      },
-      daysTimeline: {
-        type: Type.ARRAY,
-        description: "Desglose simplificado para renderizar una línea de tiempo rápida e interactiva en la UI del cliente",
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            dayNumber: { type: Type.INTEGER },
-            title: { type: Type.STRING, description: "Título corto del día" },
-            morning: { type: Type.STRING, description: "Actividad principal resumida de la mañana" },
-            afternoon: { type: Type.STRING, description: "Actividad principal resumida de la tarde" },
-            evening: { type: Type.STRING, description: "Actividad principal resumida de la noche" }
-          },
-          required: ["dayNumber", "title", "morning", "afternoon", "evening"]
-        }
+const responseSchema = {
+  type: Type.OBJECT,
+  properties: {
+    markdownItinerary: {
+      type: Type.STRING,
+      description: "El itinerario estructurado completo en formato Markdown siguiendo estrictamente la estructura solicitada."
+    },
+    budgetDistribution: {
+      type: Type.ARRAY,
+      description: "Lista de categorías e importes en porcentaje aproximado para el gráfico de torta o barra en el cliente",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          category: { type: Type.STRING, description: "Ej: Alojamiento, Transporte, Gastronomía, Actividades, Emergencias" },
+          percentage: { type: Type.INTEGER, description: "Porcentaje del total (0 a 100)" },
+          amountEst: { type: Type.STRING, description: "Gasto monetario estimado orientativo (ej: '$$' o '$150 USD')" },
+          description: { type: Type.STRING, description: "Breve nota sobre qué cubre este presupuesto, adaptado al nivel elegido" }
+        },
+        required: ["category", "percentage", "amountEst", "description"]
       }
     },
-    required: ["markdownItinerary", "budgetDistribution", "daysTimeline"]
-  };
-
-  // 1. Generate Itinerary endpoint
-  app.post("/api/itinerary/generate", async (req, res) => {
-    try {
-      const { destination, duration, budget, interests, restrictions, verifiedPlaces, verifiedRules } = req.body;
-
-      if (!destination || !duration) {
-        return res.status(400).json({ error: "Faltan datos requeridos (destino, duración)." });
+    daysTimeline: {
+      type: Type.ARRAY,
+      description: "Desglose simplificado para renderizar una línea de tiempo rápida e interactiva en la UI del cliente",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          dayNumber: { type: Type.INTEGER },
+          title: { type: Type.STRING, description: "Título corto del día" },
+          morning: { type: Type.STRING, description: "Actividad principal resumida de la mañana" },
+          afternoon: { type: Type.STRING, description: "Actividad principal resumida de la tarde" },
+          evening: { type: Type.STRING, description: "Actividad principal resumida de la noche" }
+        },
+        required: ["dayNumber", "title", "morning", "afternoon", "evening"]
       }
-
-      const contextText = (verifiedPlaces || verifiedRules) ? `
-
-Contexto Adicional (Datos de la Base de Conocimiento):
-Utiliza la siguiente información verificada para enriquecer tu respuesta y asegurar la precisión de los lugares:
-
-Lugares recomendados: ${verifiedPlaces || "No se especificaron lugares preestablecidos."}
-
-Reglas locales actuales: ${verifiedRules || "No se especificaron reglas de clima o temporadas."}` : "";
-
-      const prompt = `Por favor genera un itinerario completo personalizado con los siguientes parámetros de viaje:
-- Destino comercial: ${destination}
-- Duración del viaje: ${duration} días
-- Nivel de Presupuesto: ${budget || "Moderado"}
-- Intereses preferidos: ${Array.isArray(interests) ? interests.join(", ") : "Cualquiera"}
-- Restricciones declaradas (dietarias, movilidad, etc.): ${restrictions || "Ninguna"}${contextText}
-
-Recuerda estructurar el markdownItinerary con precisión quirúrgica, y rellenar correctamente la distribución de presupuesto y la línea de tiempo interactiva en los campos correspondientes del JSON de respuesta.`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: prompt,
-        config: {
-          systemInstruction: systemInstruction,
-          responseMimeType: "application/json",
-          responseSchema: responseSchema,
-          temperature: 0.7,
-        }
-      });
-
-      const text = response.text;
-      if (!text) {
-        throw new Error("El modelo Gemini no devolvió ningún contenido útil.");
-      }
-
-      const result = JSON.parse(text);
-      res.json({ success: true, ...result });
-
-    } catch (error: any) {
-      console.error("Error generating itinerary:", error);
-      res.status(500).json({ error: error?.message || "Ocurrió un error inesperado al generar el itinerario." });
     }
-  });
+  },
+  required: ["markdownItinerary", "budgetDistribution", "daysTimeline"]
+};
 
-  // 2. Refine Itinerary endpoint (iterative collaborative editing)
-  app.post("/api/itinerary/refine", async (req, res) => {
-    try {
-      const { originalItinerary, feedback, preferences, history } = req.body;
+// 1. Generate Itinerary endpoint
+app.post("/api/itinerary/generate", async (req, res) => {
+  try {
+    const { destination, duration, budget, interests, restrictions, verifiedPlaces, verifiedRules } = req.body;
 
-      if (!feedback) {
-        return res.status(400).json({ error: "Falta el comentario o instrucción de modificación." });
-      }
-
-      // Reconstruct state context
-      const contextText = (preferences?.verifiedPlaces || preferences?.verifiedRules) ? `
-
-Contexto Adicional (Datos de la Base de Conocimiento):
-Utiliza la siguiente información verificada para enriquecer tu respuesta y asegurar la precisión de los lugares:
-
-Lugares recomendados: ${preferences.verifiedPlaces || "No se especificaron lugares preestablecidos."}
-
-Reglas locales actuales: ${preferences.verifiedRules || "No se especificaron reglas de clima o temporadas."}` : "";
-
-      const prefContext = preferences ? `
---- Preferencias del Viaje Original ---
-- Destino: ${preferences.destination}
-- Duración original: ${preferences.duration} días
-- Presupuesto original: ${preferences.budget}
-- Intereses originales: ${Array.isArray(preferences.interests) ? preferences.interests.join(", ") : "Cualquiera"}
-- Restricciones originales: ${preferences.restrictions || "Ninguna"}${contextText}
-` : "";
-
-      const promptContext = `
-${prefContext}
---- Itinerario Inicial Generado Anteriormente ---
-${originalItinerary}
-
---- Solicitud de Feedback/Cambio del Usuario ---
-"${feedback}"
-
-Por favor, como asesor experto de viajes, analiza de forma positiva la solicitud del usuario ("${feedback}").
-Reconoce de manera alegre y atenta su sugerencia en la primera sección del markdownItinerary (Resumen del Viaje), aplica el refinamiento con gran precisión de detalles preservando el resto del viaje intacto y completamente coherente, y devuelve las matrices JSON actualizadas (budgetDistribution y daysTimeline) para coincidir estrictamente con el nuevo plan.`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: promptContext,
-        config: {
-          systemInstruction: systemInstruction,
-          responseMimeType: "application/json",
-          responseSchema: responseSchema,
-          temperature: 0.7,
-        }
-      });
-
-      const text = response.text;
-      if (!text) {
-        throw new Error("El modelo Gemini no devolvió ningún contenido útil tras el refinamiento.");
-      }
-
-      const result = JSON.parse(text);
-      res.json({ success: true, ...result });
-
-    } catch (error: any) {
-      console.error("Error refining itinerary:", error);
-      res.status(500).json({ error: error?.message || "Ocurrió un error inesperado al modificar el itinerario." });
+    if (!destination || !duration) {
+      return res.status(400).json({ error: "Faltan datos requeridos (destino, duración)." });
     }
-  });
 
-  // Serve static assets & link Vite middleware
-  if (process.env.NODE_ENV !== "production") {
+    const contextText = (verifiedPlaces || verifiedRules) ? `\n\nContexto Adicional (Datos de la Base de Conocimiento):\nUtiliza la siguiente información verificada para enriquecer tu respuesta y asegurar la precisión de los lugares:\n\nLugares recomendados: ${verifiedPlaces || "No se especificaron lugares preestablecidos."}\n\nReglas locales actuales: ${verifiedRules || "No se especificaron reglas de clima o temporadas."}` : "";
+
+    const prompt = `Por favor genera un itinerario completo personalizado con los siguientes parámetros de viaje:\n- Destino comercial: ${destination}\n- Duración del viaje: ${duration} días\n- Nivel de Presupuesto: ${budget || "Moderado"}\n- Intereses preferidos: ${Array.isArray(interests) ? interests.join(", ") : "Cualquiera"}\n- Restricciones declaradas (dietarias, movilidad, etc.): ${restrictions || "Ninguna"}${contextText}\n\nRecuerda estructurar el markdownItinerary con precisión quirúrgica, y rellenar correctamente la distribución de presupuesto y la línea de tiempo interactiva en los campos correspondientes del JSON de respuesta.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
+        temperature: 0.7,
+      }
+    });
+
+    const text = response.text;
+    if (!text) {
+      throw new Error("El modelo Gemini no devolvió ningún contenido útil.");
+    }
+
+    const result = JSON.parse(text);
+    res.json({ success: true, ...result });
+
+  } catch (error: any) {
+    console.error("Error generating itinerary:", error);
+    res.status(500).json({ error: error?.message || "Ocurrió un error inesperado al generar el itinerario." });
+  }
+});
+
+// 2. Refine Itinerary endpoint (iterative collaborative editing)
+app.post("/api/itinerary/refine", async (req, res) => {
+  try {
+    const { originalItinerary, feedback, preferences, history } = req.body;
+
+    if (!feedback) {
+      return res.status(400).json({ error: "Falta el comentario o instrucción de modificación." });
+    }
+
+    const contextText = (preferences?.verifiedPlaces || preferences?.verifiedRules) ? `\n\nContexto Adicional (Datos de la Base de Conocimiento):\nUtiliza la siguiente información verificada para enriquecer tu respuesta y asegurar la precisión de los lugares:\n\nLugares recomendados: ${preferences.verifiedPlaces || "No se especificaron lugares preestablecidos."}\n\nReglas locales actuales: ${preferences.verifiedRules || "No se especificaron reglas de clima o temporadas."}` : "";
+
+    const prefContext = preferences ? `\n--- Preferencias del Viaje Original ---\n- Destino: ${preferences.destination}\n- Duración original: ${preferences.duration} días\n- Presupuesto original: ${preferences.budget}\n- Intereses originales: ${Array.isArray(preferences.interests) ? preferences.interests.join(", ") : "Cualquiera"}\n- Restricciones originales: ${preferences.restrictions || "Ninguna"}${contextText}\n` : "";
+
+    const promptContext = `\n${prefContext}\n--- Itinerario Inicial Generado Anteriormente ---\n${originalItinerary}\n\n--- Solicitud de Feedback/Cambio del Usuario ---\n"${feedback}"\n\nPor favor, como asesor experto de viajes, analiza de forma positiva la solicitud del usuario ("${feedback}").\nReconoce de manera alegre y atenta su sugerencia en la primera sección del markdownItinerary (Resumen del Viaje), aplica el refinamiento con gran precisión de detalles preservando el resto del viaje intacto y completamente coherente, y devuelve las matrices JSON actualizadas (budgetDistribution y daysTimeline) para coincidir estrictamente con el nuevo plan.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: promptContext,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
+        temperature: 0.7,
+      }
+    });
+
+    const text = response.text;
+    if (!text) {
+      throw new Error("El modelo Gemini no devolvió ningún contenido útil tras el refinamiento.");
+    }
+
+    const result = JSON.parse(text);
+    res.json({ success: true, ...result });
+
+  } catch (error: any) {
+    console.error("Error refining itinerary:", error);
+    res.status(500).json({ error: error?.message || "Ocurrió un error inesperado al modificar el itinerario." });
+  }
+});
+
+// Configuración para el entorno de Desarrollo Local vs Vercel
+if (process.env.NODE_ENV !== "production") {
+  // En tu computadora, encendemos el servidor completo con Vite
+  (async () => {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server is running on http://localhost:${PORT}`);
     });
-  }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-  });
+  })();
 }
 
-startServer();
+// ¡LA MAGIA PARA VERCEL! Exportamos la app para que funcione como Serverless
+export default app;
