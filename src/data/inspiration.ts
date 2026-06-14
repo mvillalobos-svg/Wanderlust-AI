@@ -28,7 +28,7 @@ export const INSPIRATION_TRIPS: InspirationTrip[] = [
     id: "machu",
     title: "Machu Picchu, Perú",
     tagline: "Aventura andina, historia inca y vistas panorámicas mágicas",
-    image: "https://images.unsplash.com/photo-1587590227264-0ac64bc63c32?auto=format&fit=crop&w=600&q=80",
+    image: "https://images.unsplash.com/photo-1526392060635-9d60198d3de3?auto=format&fit=crop&w=800&q=80",
     preferences: {
       destination: "Machu Picchu y Cusco, Perú",
       duration: 4,
@@ -58,7 +58,7 @@ export const INSPIRATION_TRIPS: InspirationTrip[] = [
     id: "costarica",
     title: "Costa Rica",
     tagline: "Pura Vida entre bosques nubosos, volcanes activos y playas tropicales",
-    image: "https://images.unsplash.com/photo-1538688423619-a81d3f23454b?auto=format&fit=crop&w=600&q=80",
+    image: "https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=800&q=80",
     preferences: {
       destination: "Manuel Antonio y Volcán Arenal, Costa Rica",
       duration: 6,
