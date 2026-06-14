@@ -1,0 +1,6 @@
+{
+  "name": "Wanderlust AI",
+  "description": "Asesor de viajes experto que diseña itinerarios personalizados interactivos y colabora en tiempo real para refinar el plan del usuario.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
