@@ -28,7 +28,7 @@ export const INSPIRATION_TRIPS: InspirationTrip[] = [
     id: "machu",
     title: "Machu Picchu, Perú",
     tagline: "Aventura andina, historia inca y vistas panorámicas mágicas",
-    image: "https://images.unsplash.com/photo-1526392060635-9d60198d3de3?auto=format&fit=crop&w=800&q=80",
+    image: "image: "https://upload.wikimedia.org/wikipedia/commons/e/eb/Machu_Picchu%2C_Peru.jpg",",
     preferences: {
       destination: "Machu Picchu y Cusco, Perú",
       duration: 4,
